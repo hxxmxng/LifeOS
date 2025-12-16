@@ -8,6 +8,7 @@ export interface Task {
   id: string;
   title: string;
   categoryId: string;
+  emoji?: string; // Optional custom emoji
   targetDuration: number; // in minutes
   isCompleted: boolean;
 }
@@ -43,3 +44,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'house', name: 'Housework', emoji: '🛋️' },
   { id: 'break', name: 'Break', emoji: '☕' },
 ];
+
+// Common Emojis for quick selection
+export const QUICK_EMOJIS = ['💻', '🫧', '🏃', '🧘', '🎨', '🧹', '🧺', '📝', '🥗', '🪥', '💊', '🚿'];
