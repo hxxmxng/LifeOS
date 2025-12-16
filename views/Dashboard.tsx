@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IOSButton, IOSCard, IOSHeader, IOSListItem, IOSSegmentedControl } from '../components/IOSComponents';
-import { Category, DEFAULT_CATEGORIES, Task, Routine } from '../types';
+import { Category, DEFAULT_CATEGORIES, Task, Routine, QUICK_EMOJIS } from '../types';
 import { generateId } from '../constants';
+import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 
 interface DashboardProps {
   onStartRoutine: (tasks: Task[]) => void;
@@ -11,7 +12,7 @@ interface DashboardProps {
   onDeleteRoutine: (id: string) => void;
 }
 
-const TIME_PRESETS = [3, 5, 8, 10, 15, 20, 25];
+const TIME_PRESETS = [3, 5, 8, 10, 15, 20, 25, 30, 45, 60];
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
   onStartRoutine, 
@@ -27,6 +28,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState('25');
   const [newTaskCategory, setNewTaskCategory] = useState<Category>(DEFAULT_CATEGORIES[0]);
+  const [selectedEmoji, setSelectedEmoji] = useState<string>(DEFAULT_CATEGORIES[0].emoji);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Sync emoji with category change unless manually set
+  useEffect(() => {
+    setSelectedEmoji(newTaskCategory.emoji);
+  }, [newTaskCategory]);
 
   const addTask = () => {
     if (!newTaskTitle.trim()) return;
@@ -35,16 +43,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
       id: generateId(),
       title: newTaskTitle,
       categoryId: newTaskCategory.id,
+      emoji: selectedEmoji,
       targetDuration: parseInt(newTaskDuration) || 25,
       isCompleted: false,
     };
 
     setTodayTasks([...todayTasks, task]);
     setNewTaskTitle('');
+    setShowEmojiPicker(false);
   };
 
   const removeTask = (id: string) => {
     setTodayTasks(todayTasks.filter(t => t.id !== id));
+  };
+
+  const moveTask = (index: number, direction: 'up' | 'down') => {
+    const newTasks = [...todayTasks];
+    if (direction === 'up' && index > 0) {
+      [newTasks[index], newTasks[index - 1]] = [newTasks[index - 1], newTasks[index]];
+    } else if (direction === 'down' && index < newTasks.length - 1) {
+      [newTasks[index], newTasks[index + 1]] = [newTasks[index + 1], newTasks[index]];
+    }
+    setTodayTasks(newTasks);
   };
 
   const handleSaveToTemplates = () => {
@@ -73,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <IOSHeader 
         title="Organizer" 
         rightButton={
-          <button onClick={onViewLogs} className="text-[#007aff] text-sm font-bold text-inset-light-bg">Logs</button>
+          <button onClick={onViewLogs} className="text-[#007aff] text-sm font-bold text-inset-light-bg active:opacity-50">Logs</button>
         }
       />
 
@@ -93,16 +113,44 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {activeTab === 'today' && (
           <div className="space-y-6">
             {/* Task Input */}
-            <IOSCard className="p-4">
+            <IOSCard className="p-4 relative z-20">
               <h3 className="text-gray-500 text-xs font-bold uppercase mb-2">New Task</h3>
-              <input 
-                type="text" 
-                placeholder="What needs focus?" 
-                className="w-full mb-3 p-2 rounded border border-gray-300 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTask()}
-              />
+              
+              <div className="flex gap-2 mb-3">
+                 {/* Emoji Picker Button */}
+                 <button 
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="w-12 h-12 bg-white border border-gray-300 rounded shadow-inner text-2xl flex items-center justify-center shrink-0 active:bg-gray-100"
+                 >
+                   {selectedEmoji}
+                 </button>
+
+                 <input 
+                  type="text" 
+                  placeholder="What needs focus?" 
+                  className="flex-1 p-2 rounded border border-gray-300 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addTask()}
+                />
+              </div>
+
+              {/* Emoji Popover */}
+              {showEmojiPicker && (
+                <div className="mb-3 p-2 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-wrap gap-2">
+                   {DEFAULT_CATEGORIES.map(c => (
+                     <button key={c.id} onClick={() => { setSelectedEmoji(c.emoji); setNewTaskCategory(c); setShowEmojiPicker(false); }} className="text-xl p-1 hover:bg-gray-100 rounded">
+                       {c.emoji}
+                     </button>
+                   ))}
+                   <div className="w-px h-6 bg-gray-300 mx-1"></div>
+                   {QUICK_EMOJIS.map(e => (
+                     <button key={e} onClick={() => { setSelectedEmoji(e); setShowEmojiPicker(false); }} className="text-xl p-1 hover:bg-gray-100 rounded">
+                       {e}
+                     </button>
+                   ))}
+                </div>
+              )}
               
               <div className="flex gap-2 mb-3">
                 <select 
@@ -150,7 +198,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Current List */}
             {todayTasks.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2 pb-10">
                 <div className="flex items-center justify-between ml-2">
                   <h3 className="text-gray-600 text-inset-light-bg text-xs font-bold uppercase">To-Do Sequence</h3>
                   <span className="text-gray-500 text-xs font-bold">{todayTasks.length} Items</span>
@@ -158,19 +206,50 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 
                 <div className="rounded-xl overflow-hidden shadow-sm border border-gray-400">
                   {todayTasks.map((task, idx) => {
-                    const cat = DEFAULT_CATEGORIES.find(c => c.id === task.categoryId);
+                    const isFirst = idx === 0;
+                    const isLast = idx === todayTasks.length - 1;
+
                     return (
                       <IOSListItem key={task.id} className="flex justify-between items-center group">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{cat?.emoji}</span>
-                          <div>
-                            <div className="font-bold text-gray-800">{task.title}</div>
-                            <div className="text-xs text-gray-500">{task.targetDuration} mins</div>
+                        <div className="flex items-center justify-between w-full">
+                          {/* Left Content: Emoji & Text */}
+                          <div className="flex items-center gap-3 overflow-hidden flex-1">
+                            <span className="text-xl flex-shrink-0">{task.emoji || '📝'}</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-gray-800 text-sm truncate">{task.title}</div>
+                              <div className="text-[10px] text-gray-500">{task.targetDuration} mins</div>
+                            </div>
+                          </div>
+
+                          {/* Right Controls: Sort & Delete */}
+                          <div className="flex items-center gap-2 pl-2 flex-none">
+                            <div className="flex flex-col bg-gray-100 rounded border border-gray-200">
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); moveTask(idx, 'up'); }}
+                                 disabled={isFirst}
+                                 className={`p-0.5 px-1.5 ${isFirst ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
+                               >
+                                 <ChevronUp size={12} />
+                               </button>
+                               <div className="h-px bg-gray-200"></div>
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); moveTask(idx, 'down'); }}
+                                 disabled={isLast}
+                                 className={`p-0.5 px-1.5 ${isLast ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
+                               >
+                                 <ChevronDown size={12} />
+                               </button>
+                            </div>
+                            
+                            <button 
+                              onClick={() => removeTask(task.id)} 
+                              className="text-gray-400 p-1.5 rounded hover:bg-gray-100 hover:text-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         </div>
-                        <button onClick={() => removeTask(task.id)} className="text-red-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity px-2">
-                          Delete
-                        </button>
                       </IOSListItem>
                     );
                   })}

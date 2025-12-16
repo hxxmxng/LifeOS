@@ -13,17 +13,24 @@ interface FocusModeProps {
 export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteLog }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(tasks[0]?.targetDuration * 60 || 0);
+  const [sessionTotalDuration, setSessionTotalDuration] = useState(tasks[0]?.targetDuration * 60 || 0);
+  const [overtime, setOvertime] = useState(0); // Track extra time
   const [isPaused, setIsPaused] = useState(false);
   const [showBreak, setShowBreak] = useState(false);
   
   const timeSpentRef = useRef(0);
 
   const currentTask = tasks[currentIndex];
+  // Fallback if emoji is missing (older data)
   const category = DEFAULT_CATEGORIES.find(c => c.id === currentTask?.categoryId);
+  const displayEmoji = currentTask?.emoji || category?.emoji || '📝';
 
   useEffect(() => {
     if (currentTask && !showBreak) {
-      setTimeLeft(currentTask.targetDuration * 60);
+      const duration = currentTask.targetDuration * 60;
+      setTimeLeft(duration);
+      setSessionTotalDuration(duration);
+      setOvertime(0);
       timeSpentRef.current = 0;
       setIsPaused(false);
     }
@@ -31,28 +38,48 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteL
 
   useEffect(() => {
     let interval: any;
-    if (!isPaused && timeLeft > 0) {
+    if (!isPaused) {
       interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        if (timeLeft > 0) {
+          setTimeLeft((prev) => prev - 1);
+        } else {
+          // Enter Overtime Mode
+          setOvertime((prev) => prev + 1);
+        }
+        // Always track total time spent (regular + overtime)
         timeSpentRef.current += 1;
       }, 1000);
-    } else if (timeLeft === 0 && !isPaused) {
-      handleTaskComplete();
     }
     return () => clearInterval(interval);
   }, [isPaused, timeLeft]);
 
+  const addExtraTime = () => {
+    // Add 3 minutes (180 seconds)
+    setTimeLeft((prev) => {
+      const newVal = prev + 180;
+      // If the new time exceeds the current total duration scale, extend the scale
+      // This prevents the clock ring from being > 100% and gives a natural countdown feel for the extension
+      setSessionTotalDuration(curr => Math.max(curr, newVal));
+      return newVal;
+    });
+    setOvertime(0); // Reset overtime if we add more buffer
+    setIsPaused(false); // Auto resume if added
+  };
+
   const handleTaskComplete = () => {
-    const log: SessionLog = {
-      id: generateId(),
-      taskId: currentTask.id,
-      taskTitle: currentTask.title,
-      categoryEmoji: category?.emoji || '📝',
-      timestamp: Date.now(),
-      durationSpent: timeSpentRef.current,
-      completed: true
-    };
-    onCompleteLog(log);
+    // Only log if it is NOT a break
+    if (!showBreak) {
+      const log: SessionLog = {
+        id: generateId(),
+        taskId: currentTask.id,
+        taskTitle: currentTask.title,
+        categoryEmoji: displayEmoji,
+        timestamp: Date.now(),
+        durationSpent: timeSpentRef.current,
+        completed: true
+      };
+      onCompleteLog(log);
+    }
 
     if (currentIndex < tasks.length - 1) {
       const shouldBreak = (currentIndex + 1) % 2 === 0;
@@ -62,14 +89,22 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteL
         nextTask();
       }
     } else {
-      alert("🎉 Routine Complete! Amazing flow.");
-      onExit();
+      if (!showBreak) {
+        alert("🎉 Routine Complete! Amazing flow.");
+        onExit();
+      } else {
+        // If break finished and no more tasks (unlikely but safe)
+        onExit();
+      }
     }
   };
 
   const startBreak = () => {
     setShowBreak(true);
-    setTimeLeft(5 * 60);
+    const duration = 5 * 60; // 5 minute break default
+    setTimeLeft(duration);
+    setSessionTotalDuration(duration);
+    setOvertime(0);
     timeSpentRef.current = 0;
   };
 
@@ -78,86 +113,113 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteL
     setCurrentIndex(prev => prev + 1);
   };
 
+  const handleSafeExit = () => {
+    if (confirm("Stop timer and return to dashboard? Current progress will be lost.")) {
+      onExit();
+    }
+  };
+
   if (!currentTask) return <div className="text-gray-800">Loading...</div>;
+
+  const isOvertime = timeLeft === 0 && overtime > 0;
 
   return (
     <div className="flex flex-col h-full bg-linen-light relative overflow-hidden">
       <IOSHeader 
         title={showBreak ? "Recharge" : "Focus"} 
         leftButton={
-          <button onClick={onExit} className="text-[#007aff] text-sm font-bold text-inset-light-bg active:opacity-70">End</button>
+          <button onClick={handleSafeExit} className="text-[#007aff] text-sm font-bold text-inset-light-bg active:opacity-70">
+            Exit
+          </button>
         }
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col items-center justify-between py-12 px-6">
+      <div className="flex-1 flex flex-col px-6 py-6 relative z-10">
         
-        {/* Top Spacer / Task Context */}
-        <div className="text-center mt-4">
-          <div className="text-gray-500 text-inset-light-bg font-medium tracking-wide uppercase text-xs mb-1">
-            {showBreak ? 'Next Up' : 'Current Task'}
-          </div>
-          <div className="text-gray-400 text-sm font-semibold truncate max-w-[200px] mx-auto">
-             {showBreak ? tasks[currentIndex + 1]?.title || 'Finish' : `${currentIndex + 1} of ${tasks.length}`}
-          </div>
+        {/* Glass Card Info */}
+        <div className="bg-white/40 backdrop-blur-sm border border-white/50 rounded-xl p-4 shadow-sm mb-6 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Now Playing</span>
+              <span className="font-bold text-gray-800 text-lg truncate max-w-[150px]">{showBreak ? "Break Time" : currentTask.title}</span>
+            </div>
+            <div className="text-right flex flex-col items-end">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Next</span>
+              <span className="text-gray-600 text-sm truncate max-w-[100px]">
+                {showBreak ? tasks[currentIndex + 1]?.title : (currentIndex < tasks.length - 1 ? "Break" : "Finish")}
+              </span>
+            </div>
         </div>
 
         {/* Centerpiece: Clock & Time */}
-        <div className="flex flex-col items-center relative z-10">
-          <div className={`transition-all duration-700 ${isPaused ? 'opacity-70 grayscale-[0.8]' : 'opacity-100'}`}>
+        <div className="flex flex-col items-center flex-1 justify-center -mt-8">
+          <div className={`transition-all duration-500 transform ${isPaused ? 'scale-95 opacity-80 blur-[1px]' : 'scale-100 opacity-100'}`}>
             <AnalogClock 
               durationSeconds={timeLeft} 
-              totalDurationSeconds={showBreak ? 300 : currentTask.targetDuration * 60} 
+              totalDurationSeconds={sessionTotalDuration} 
             />
           </div>
           
-          <div className="mt-8 text-center space-y-2">
-            {/* Digital Time */}
-            <div className="text-6xl font-mono text-gray-800 text-inset-light-bg font-bold tracking-widest tabular-nums">
-               {Math.floor(timeLeft / 60).toString().padStart(2,'0')}:{Math.floor(timeLeft % 60).toString().padStart(2,'0')}
-            </div>
+          <div className="mt-6 text-center">
+            {/* Digital Time - Bigger & Bolder */}
+            {isOvertime ? (
+               <div className="text-7xl font-sans font-thin text-red-500 text-inset-light-bg tracking-tighter tabular-nums leading-none animate-pulse">
+                 + {Math.floor(overtime / 60).toString().padStart(2,'0')}:{Math.floor(overtime % 60).toString().padStart(2,'0')}
+               </div>
+            ) : (
+               <div className="text-7xl font-sans font-thin text-gray-800 text-inset-light-bg tracking-tighter tabular-nums leading-none">
+                  {Math.floor(timeLeft / 60).toString().padStart(2,'0')}:{Math.floor(timeLeft % 60).toString().padStart(2,'0')}
+               </div>
+            )}
             
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <span className="text-3xl filter drop-shadow-sm">
-                {showBreak ? '☕' : category?.emoji}
+            {/* Minimal Progress Indicator */}
+            <div className="mt-4">
+              <span className={`text-xs font-bold uppercase tracking-widest ${isOvertime ? 'text-red-400' : 'text-gray-400'}`}>
+                {isOvertime ? 'Exceeded Duration' : (showBreak ? 'Break Session' : `${currentIndex + 1} / ${tasks.length}`)}
               </span>
-              <h2 className="text-2xl font-bold text-gray-800 text-inset-light-bg leading-tight max-w-[250px] truncate">
-                {showBreak ? "Take a Break" : currentTask.title}
-              </h2>
             </div>
           </div>
         </div>
 
         {/* Bottom Controls */}
-        <div className="w-full max-w-xs space-y-5 mb-6 z-10">
+        <div className="w-full mt-auto mb-4 space-y-3">
            {!showBreak ? (
-             <div className="flex items-center gap-4">
+             <div className="flex items-center gap-3">
                <IOSButton 
                   variant={isPaused ? "success" : "secondary"} 
-                  className={`flex-1 h-12 text-lg shadow-lg ${isPaused ? 'text-white' : ''}`}
+                  className={`flex-1 h-14 text-lg shadow-lg transition-all active:scale-[0.98] ${isPaused ? 'text-white' : ''}`}
                   onClick={() => setIsPaused(!isPaused)}
                 >
                   {isPaused ? "Resume" : "Pause"}
                 </IOSButton>
+
+                <IOSButton 
+                  variant="secondary" 
+                  className="w-20 h-14 text-sm font-bold shadow-lg active:scale-[0.98] flex flex-col items-center justify-center leading-tight"
+                  onClick={addExtraTime}
+                >
+                  <span>+3</span>
+                  <span className="text-[10px]">Min</span>
+                </IOSButton>
                 
                <IOSButton 
                   variant="primary" 
-                  className="flex-1 h-12 text-lg shadow-lg"
+                  className="flex-1 h-14 text-lg shadow-lg transition-all active:scale-[0.98]"
                   onClick={handleTaskComplete}
                 >
                   Complete
                 </IOSButton>
              </div>
            ) : (
-             <IOSButton variant="secondary" className="w-full h-12 text-lg shadow-lg" onClick={nextTask}>
+             <IOSButton variant="secondary" className="w-full h-14 text-xl shadow-lg active:scale-[0.98]" onClick={nextTask}>
                 Skip Break
               </IOSButton>
            )}
         </div>
       </div>
       
-      {/* Background Vignette for depth (light mode version) */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(255,255,255,0.8)_100%)] opacity-50" />
+      {/* Background Vignette for depth */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(255,255,255,0.6)_100%)] opacity-60" />
     </div>
   );
 };
