@@ -42,6 +42,13 @@ const App: React.FC = () => {
     saveData({ routines: updatedRoutines });
   };
 
+  const handleClearLogs = () => {
+    if (confirm("Are you sure you want to clear all history? This cannot be undone.")) {
+      setLogs([]);
+      saveData({ logs: [] });
+    }
+  };
+
   return (
     <div className="w-full h-full max-w-md mx-auto bg-white relative shadow-2xl overflow-hidden border-x border-gray-300">
       {/* View Switcher */}
@@ -67,6 +74,7 @@ const App: React.FC = () => {
         <Diary 
           logs={logs}
           onBack={() => setView(ViewState.DASHBOARD)}
+          onClearLogs={handleClearLogs}
         />
       )}
     </div>
