@@ -90,16 +90,16 @@ export const IOSListItem: React.FC<{
     <div 
       onClick={onClick}
       className={`
-        relative bg-white border-b border-gray-300 px-4 py-3 first:rounded-t-xl last:rounded-b-xl last:border-b-0
+        relative bg-white border-b border-gray-300 px-3 py-2 first:rounded-t-xl last:rounded-b-xl last:border-b-0
         active:bg-blue-50 cursor-pointer flex items-center justify-between
         ${className}
       `}
     >
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {children}
       </div>
       {hasArrow && (
-        <span className="text-gray-400 font-bold ml-2 text-xl">›</span>
+        <span className="text-gray-400 font-bold ml-2 text-xl flex-none">›</span>
       )}
     </div>
   );
@@ -108,7 +108,7 @@ export const IOSListItem: React.FC<{
 // --- iOS 6 Header ---
 export const IOSHeader: React.FC<{ title: string; leftButton?: React.ReactNode; rightButton?: React.ReactNode }> = ({ title, leftButton, rightButton }) => {
   return (
-    <header className="h-14 bg-gradient-to-b from-[#d6dde4] to-[#aebccf] border-b border-[#8a96a3] shadow-sm flex items-center justify-between px-2 relative z-10">
+    <header className="h-14 bg-gradient-to-b from-[#d6dde4] to-[#aebccf] border-b border-[#8a96a3] shadow-sm flex items-center justify-between px-2 relative z-10 shrink-0">
       <div className="w-16 flex justify-start">
         {leftButton}
       </div>
