@@ -6,9 +6,10 @@ import { formatTime } from '../constants';
 interface DiaryProps {
   logs: SessionLog[];
   onBack: () => void;
+  onClearLogs: () => void;
 }
 
-export const Diary: React.FC<DiaryProps> = ({ logs, onBack }) => {
+export const Diary: React.FC<DiaryProps> = ({ logs, onBack, onClearLogs }) => {
   // Sort logs by date desc
   const sortedLogs = [...logs].sort((a, b) => b.timestamp - a.timestamp);
   
@@ -25,7 +26,17 @@ export const Diary: React.FC<DiaryProps> = ({ logs, onBack }) => {
       <IOSHeader 
         title="My Diary" 
         leftButton={
-          <button onClick={onBack} className="text-[#007aff] text-sm font-bold text-inset-light-bg">Back</button>
+          <button onClick={onBack} className="text-[#007aff] text-sm font-bold text-inset-light-bg active:opacity-50">Back</button>
+        }
+        rightButton={
+          logs.length > 0 && (
+            <button 
+              onClick={onClearLogs} 
+              className="text-[#ff3b30] text-sm font-bold text-inset-light-bg active:opacity-50"
+            >
+              Clear
+            </button>
+          )
         }
       />
       
