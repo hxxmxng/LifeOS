@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IOSButton, IOSCard, IOSHeader, IOSListItem, IOSSegmentedControl } from '../components/IOSComponents';
 import { Category, DEFAULT_CATEGORIES, Task, Routine, QUICK_EMOJIS } from '../types';
 import { generateId } from '../constants';
-import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Trash2, Check, X } from 'lucide-react';
 
 interface DashboardProps {
+  tasks: Task[];
+  onUpdateTasks: (tasks: Task[]) => void;
   onStartRoutine: (tasks: Task[]) => void;
   onViewLogs: () => void;
   savedRoutines: Routine[];
@@ -15,6 +17,8 @@ interface DashboardProps {
 const TIME_PRESETS = [3, 5, 8, 10, 15, 20, 25, 30, 45, 60];
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
+  tasks: todayTasks,
+  onUpdateTasks: setTodayTasks,
   onStartRoutine, 
   onViewLogs, 
   savedRoutines, 
@@ -22,7 +26,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onDeleteRoutine 
 }) => {
   const [activeTab, setActiveTab] = useState<'today' | 'templates'>('today');
-  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   
   // New Task Form State
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -31,10 +34,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [selectedEmoji, setSelectedEmoji] = useState<string>(DEFAULT_CATEGORIES[0].emoji);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  // Editing State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   // Sync emoji with category change unless manually set
   useEffect(() => {
     setSelectedEmoji(newTaskCategory.emoji);
   }, [newTaskCategory]);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingId]);
 
   const addTask = () => {
     if (!newTaskTitle.trim()) return;
@@ -55,6 +70,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const removeTask = (id: string) => {
     setTodayTasks(todayTasks.filter(t => t.id !== id));
+    if (editingId === id) cancelEdit();
   };
 
   const moveTask = (index: number, direction: 'up' | 'down') => {
@@ -86,6 +102,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const newTasks = routine.tasks.map(t => ({...t, id: generateId(), isCompleted: false}));
     setTodayTasks(newTasks);
     setActiveTab('today');
+  };
+
+  // --- Inline Edit Functions ---
+  const startEditing = (task: Task) => {
+    setEditingId(task.id);
+    setEditTitle(task.title);
+    setEditDuration(task.targetDuration.toString());
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTitle('');
+    setEditDuration('');
+  };
+
+  const saveEdit = (id: string) => {
+    if (!editTitle.trim()) {
+      cancelEdit();
+      return;
+    }
+    const updatedTasks = todayTasks.map(t => {
+      if (t.id === id) {
+        return { 
+          ...t, 
+          title: editTitle, 
+          targetDuration: parseInt(editDuration) || t.targetDuration 
+        };
+      }
+      return t;
+    });
+    setTodayTasks(updatedTasks);
+    setEditingId(null);
   };
 
   return (
@@ -208,48 +256,88 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {todayTasks.map((task, idx) => {
                     const isFirst = idx === 0;
                     const isLast = idx === todayTasks.length - 1;
+                    const isEditing = editingId === task.id;
 
                     return (
-                      <IOSListItem key={task.id} className="flex justify-between items-center group">
-                        <div className="flex items-center justify-between w-full">
-                          {/* Left Content: Emoji & Text */}
-                          <div className="flex items-center gap-3 overflow-hidden flex-1">
-                            <span className="text-xl flex-shrink-0">{task.emoji || '📝'}</span>
-                            <div className="min-w-0">
-                              <div className="font-bold text-gray-800 text-sm truncate">{task.title}</div>
-                              <div className="text-[10px] text-gray-500">{task.targetDuration} mins</div>
+                      <IOSListItem 
+                        key={task.id} 
+                        className={`flex justify-between items-center group transition-colors ${isEditing ? 'bg-blue-50' : ''}`}
+                        onClick={() => !isEditing && startEditing(task)}
+                      >
+                        {isEditing ? (
+                          // Edit Mode
+                          <div className="flex items-center gap-2 w-full animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-xl flex-shrink-0 opacity-50">{task.emoji}</span>
+                            <div className="flex-1 flex gap-2">
+                               <input 
+                                ref={editInputRef}
+                                type="text" 
+                                value={editTitle} 
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEdit(task.id)}
+                                className="w-full p-1 px-2 border border-blue-400 rounded shadow-inner text-sm focus:outline-none"
+                              />
+                            </div>
+                            <div className="w-16 relative">
+                               <input 
+                                type="number" 
+                                value={editDuration}
+                                onChange={(e) => setEditDuration(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEdit(task.id)}
+                                className="w-full p-1 px-2 border border-blue-400 rounded shadow-inner text-sm text-center focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => saveEdit(task.id)} className="p-1 bg-green-500 rounded text-white shadow-sm active:scale-95">
+                                <Check size={16} />
+                              </button>
+                              <button onClick={cancelEdit} className="p-1 bg-gray-400 rounded text-white shadow-sm active:scale-95">
+                                <X size={16} />
+                              </button>
                             </div>
                           </div>
+                        ) : (
+                          // View Mode
+                          <div className="flex items-center justify-between w-full">
+                            {/* Left Content: Emoji & Text */}
+                            <div className="flex items-center gap-3 overflow-hidden flex-1">
+                              <span className="text-xl flex-shrink-0">{task.emoji || '📝'}</span>
+                              <div className="min-w-0">
+                                <div className="font-bold text-gray-800 text-sm truncate">{task.title}</div>
+                                <div className="text-[10px] text-gray-500">{task.targetDuration} mins</div>
+                              </div>
+                            </div>
 
-                          {/* Right Controls: Sort & Delete */}
-                          <div className="flex items-center gap-2 pl-2 flex-none">
-                            <div className="flex flex-col bg-gray-100 rounded border border-gray-200">
-                               <button 
-                                 onClick={(e) => { e.stopPropagation(); moveTask(idx, 'up'); }}
-                                 disabled={isFirst}
-                                 className={`p-0.5 px-1.5 ${isFirst ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
-                               >
-                                 <ChevronUp size={12} />
-                               </button>
-                               <div className="h-px bg-gray-200"></div>
-                               <button 
-                                 onClick={(e) => { e.stopPropagation(); moveTask(idx, 'down'); }}
-                                 disabled={isLast}
-                                 className={`p-0.5 px-1.5 ${isLast ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
-                               >
-                                 <ChevronDown size={12} />
-                               </button>
+                            {/* Right Controls: Sort & Delete */}
+                            <div className="flex items-center gap-2 pl-2 flex-none" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-col bg-gray-100 rounded border border-gray-200">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); moveTask(idx, 'up'); }}
+                                  disabled={isFirst}
+                                  className={`p-0.5 px-1.5 ${isFirst ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
+                                >
+                                  <ChevronUp size={12} />
+                                </button>
+                                <div className="h-px bg-gray-200"></div>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); moveTask(idx, 'down'); }}
+                                  disabled={isLast}
+                                  className={`p-0.5 px-1.5 ${isLast ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600 active:bg-blue-100'}`}
+                                >
+                                  <ChevronDown size={12} />
+                                </button>
+                              </div>
+                              
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); removeTask(task.id); }} 
+                                className="text-gray-400 p-1.5 rounded hover:bg-gray-100 hover:text-red-500 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
-                            
-                            <button 
-                              onClick={() => removeTask(task.id)} 
-                              className="text-gray-400 p-1.5 rounded hover:bg-gray-100 hover:text-red-500 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
                           </div>
-                        </div>
+                        )}
                       </IOSListItem>
                     );
                   })}
