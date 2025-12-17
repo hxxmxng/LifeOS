@@ -8,9 +8,10 @@ interface FocusModeProps {
   tasks: Task[];
   onExit: () => void;
   onCompleteLog: (log: SessionLog) => void;
+  onTaskCompleted: (taskId: string) => void;
 }
 
-export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteLog }) => {
+export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteLog, onTaskCompleted }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(tasks[0]?.targetDuration * 60 || 0);
   const [sessionTotalDuration, setSessionTotalDuration] = useState(tasks[0]?.targetDuration * 60 || 0);
@@ -79,6 +80,9 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteL
         completed: true
       };
       onCompleteLog(log);
+      
+      // Update global list (remove completed task)
+      onTaskCompleted(currentTask.id);
     }
 
     if (currentIndex < tasks.length - 1) {
@@ -114,7 +118,8 @@ export const FocusMode: React.FC<FocusModeProps> = ({ tasks, onExit, onCompleteL
   };
 
   const handleSafeExit = () => {
-    if (confirm("Stop timer and return to dashboard? Current progress will be lost.")) {
+    // Message updated to reflect that only the current progress is lost, but completed tasks are saved.
+    if (confirm("Stop timer and return to dashboard? Progress on the current task will not be saved.")) {
       onExit();
     }
   };
