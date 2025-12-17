@@ -1,21 +1,24 @@
-import { Routine, SessionLog } from '../types';
+import { Routine, SessionLog, Task } from '../types';
 import { APP_STORAGE_KEY } from '../constants';
 
 interface StorageData {
   routines: Routine[];
   logs: SessionLog[];
+  currentPlan: Task[]; // Persist the active todo list
 }
 
 const INITIAL_DATA: StorageData = {
   routines: [],
-  logs: []
+  logs: [],
+  currentPlan: []
 };
 
 export const loadData = (): StorageData => {
   try {
     const raw = localStorage.getItem(APP_STORAGE_KEY);
     if (!raw) return INITIAL_DATA;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return { ...INITIAL_DATA, ...parsed }; // Ensure structure
   } catch (e) {
     console.error('Failed to load data', e);
     return INITIAL_DATA;
