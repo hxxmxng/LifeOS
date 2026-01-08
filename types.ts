@@ -40,10 +40,10 @@ export enum ViewState {
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'job', name: 'Job', emoji: '💼' },
   { id: 'study', name: 'Study', emoji: '📖' },
-  { id: 'hobby', name: 'Hobby', emoji: '🤎' },
+  { id: 'hobby', name: 'Hobby', emoji: '🫐' },
   { id: 'house', name: 'Housework', emoji: '🛋️' },
-  { id: 'break', name: 'Break', emoji: '☕' },
+  { id: 'selfcare', name: 'Self Care', emoji: '🩶' },
 ];
 
 // Common Emojis for quick selection
-export const QUICK_EMOJIS = ['💻', '🫧', '🏃', '🧘', '🎨', '🧹', '🧺', '📝', '🥗', '🪥', '💊', '🚿'];
+export const QUICK_EMOJIS = ['💻', '🫧', '🏃', '🧘', '🎨', '🧹', '🧺', '🖋️', '🥗', '🪥', '💊', '🚿', '🪮', '🥣', '🧴'];
